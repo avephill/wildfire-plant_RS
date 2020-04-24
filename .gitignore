@@ -1,0 +1,13 @@
+Figures
+Scripts/2-Data_Presentation
+Scripts/1-Analysis/LookingforColinearity.R
+Scripts/1-Analysis/SlopeFireCorrelation.R
+Publishable\ Repo.Rproj
+Data/Environmental/Original/*
+Data/Environmental/Processed/*
+Data/Occurrence/Original/FIA_by_state
+Data/Occurrence/Processed/*
+Results/*
+.DS_Store
+.Rhistory
+.Rproj.user
