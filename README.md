@@ -1,4 +1,4 @@
-# Scripts in study *How Competition and Wildfire Affect Tree Migration in the American West* (in review)
+# Scripts in study *How Competition and Wildfire Affect Tree Range Shifts in the American West* (in review)
 ## Abstract:
 Due to climate change, plant populations experience environmental conditions to which they are not adapted. Our understanding of the next century’s vegetation geography depends on the distance, direction, and rate at which plants redistribute in response to a changing climate. Although plant migration in response to contemporary climate change is widely observed, our understanding of its mechanics is nascent. In this study we test the response of plant migration rates to wildfire occurrence using 33,838 Forest Inventory Analysis plots across five states in the western United States. Wildfire increases the rate of migration towards suitable climates for seven tree species (by more than 22% on average), suggesting that incumbent vegetation can act as a barrier to plant migration and that fire management may be an important facet of the management of vegetation transitions in response to climate change.
 
