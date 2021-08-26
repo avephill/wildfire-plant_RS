@@ -3,7 +3,7 @@
 
 ### First download statewide FIA information from 
 ###     https://apps.fs.usda.gov/fia/datamart/CSV/datamart_csv.html
-### and place in Data/Occurrence/Original/FIA_by_state/
+### and place in Data/Occurrence/Original/StateswFullInfo/
 
 # All trees (standing live and dead) with a diameter at breast height (dbh) of at least 12.7 cm, 
 # are inventoried on forested subplots. Within each subplot, a 2.07 m radius microplot offset 3.66 m 
@@ -21,70 +21,38 @@
 # To compare species in different life stages (off- spring vs. adult), we followed the FIA definition, 
 # dividing the data into two types of subgroups, (i) seedling (dbh < 2.5 cm) vs. tree (dbh > 2.5 cm),
 # and (ii) sapling (2.5 cm < dbh < 12.7 cm) vs. large tree (dbh > 12.7 cm).
-
+library(tidyverse)
 library(raster)
 library(gridExtra)
-library(rgdal)
 library(tcltk2)
+library(rgdal)
 if(!exists("project_directory")) project_directory <- "" # Enter location of project directory within quotation marks
 setwd(project_directory)
 
 setwd("Data/Occurrence/Original")
 spcd<-read.csv("species_codes.csv")
 
-# CA datasets
-CApl <-   read.csv("FIA_by_state/CA/CA_PLOT.csv")
-CAsd <-   read.csv("FIA_by_state/CA/CA_SEEDLING.csv")
-CAtr <-   read.csv("FIA_by_state/CA/CA_TREE.csv")
-CAcond <- read.csv("FIA_by_state/CA/CA_COND.csv")
+states <- c("CA", "OR", "WA", "ID", "MT", "WY", "UT", "NM", "SD", "CO")
+# states <- "SD"
+pl <- data.frame()
+sd <- data.frame()
+tr <- data.frame()
+cond <- data.frame()
 
-# Oregon datasets
-ORpl <-   read.csv("FIA_by_state/OR/OR_PLOT.csv")
-ORsd <-   read.csv("FIA_by_state/OR/OR_SEEDLING.csv")
-ORtr <-   read.csv("FIA_by_state/OR/OR_TREE.csv")
-ORcond <- read.csv("FIA_by_state/OR/OR_COND.csv")
-# remove extra column to make consistent with CA datasets
-lcc<-ORcond$LAND_COVER_CLASS_CD
-ORcond<-ORcond[1:150] 
-names(ORcond)[106]<- "LAND_COVER_CLASS_CD"
-ORcond$LAND_COVER_CLASS_CD<-lcc
-
-# Washington datasets
-WApl <-   read.csv("FIA_by_state/WA/WA_PLOT.csv")
-WAsd <-   read.csv("FIA_by_state/WA/WA_SEEDLING.csv")
-WAtr <-   read.csv("FIA_by_state/WA/WA_TREE.csv")
-WAcond <- read.csv("FIA_by_state/WA/WA_COND.csv")
-lcc<-WAcond$LAND_COVER_CLASS_CD
-WAcond<-WAcond[1:150]
-names(WAcond)[106]<- "LAND_COVER_CLASS_CD"
-WAcond$LAND_COVER_CLASS_CD<-lcc
-
-#Idaho datasets
-IDpl <-   read.csv("FIA_by_state/ID/ID_PLOT.csv")
-IDsd <-   read.csv("FIA_by_state/ID/ID_SEEDLING.csv")
-IDtr <-   read.csv("FIA_by_state/ID/ID_TREE.csv")
-IDcond <- read.csv("FIA_by_state/ID/ID_COND.csv")
-lcc<-IDcond$LAND_COVER_CLASS_CD
-IDcond<-IDcond[1:150]
-names(IDcond)[106]<- "LAND_COVER_CLASS_CD"
-IDcond$LAND_COVER_CLASS_CD<-lcc
-
-#Montana datasets
-MTpl <-   read.csv("FIA_by_state/MT/MT_PLOT.csv")
-MTsd <-   read.csv("FIA_by_state/MT/MT_SEEDLING.csv")
-MTtr <-   read.csv("FIA_by_state/MT/MT_TREE.csv")
-MTcond <- read.csv("FIA_by_state/MT/MT_COND.csv")
-lcc<-MTcond$LAND_COVER_CLASS_CD
-MTcond<-MTcond[1:150]
-names(MTcond)[106]<- "LAND_COVER_CLASS_CD"
-MTcond$LAND_COVER_CLASS_CD<-lcc
+for(state in states){
+  state_pl <-   read.csv(paste0("States/",state,"/",state,"_PLOT.csv"))
+  state_sd <-   read.csv(paste0("States/",state,"/",state,"_SEEDLING.csv"))
+  state_tr <-   read.csv(paste0("States/",state,"/",state,"_TREE.csv"))
+  state_cond <- read.csv(paste0("States/",state,"/",state,"_COND.csv")) %>% 
+    dplyr::select(PLT_CN, DSTRBCD1, DSTRBCD2, DSTRBCD3)
+  
+  pl  <- rbind(pl, state_pl)
+  sd  <- rbind(sd, state_sd)
+  tr  <- rbind(tr, state_tr)
+  cond <- rbind(cond, state_cond)
+}
 
 
-# Combine datasets
-pl<- rbind(CApl,ORpl,WApl,IDpl,MTpl)
-sd<-rbind(CAsd,ORsd,WAsd,IDsd,MTsd )
-tr<-rbind(CAtr,ORtr,WAtr,IDtr,MTtr )
-cond<-rbind(CAcond,ORcond,WAcond,IDcond,MTcond)
 
 # Only keep plots that have Level of Sampling Detail that effectively makes this plot a full tally of trees and seedlings
 
@@ -99,39 +67,18 @@ pl.filt<-pl[pl$P2VEG_SAMPLING_LEVEL_DETAIL_CD %in% c(2,3),]
 # Here we determine whether a site burned by looking at the 'Disturbance' column of the
 # Condition table, and indicate the result in our pl.filt data.frame
 
-pl.filt$FIRE=NA
-pl_rows = nrow(pl.filt)
-pb <- tkProgressBar(title = "progress bar", min = 0, max = pl_rows, width = 300)
+pl.postfilt <- pl.filt %>% 
+  rename(PLT_CN = CN) %>% # rename pl ID column so it's same as condition table
+  left_join(cond %>% filter(DSTRBCD1 %in% c(30,31,32) | # join condition table after making a fire column
+                            DSTRBCD2 %in% c(30,31,32) |
+                            DSTRBCD3 %in% c(30,31,32)) %>% 
+              mutate(FIRE = "yes"), 
+            by = "PLT_CN") %>% 
+  rename(CN = PLT_CN)
 
-for(i in 1:pl_rows){ 
-  
-  #there are three columns for disturbances, so we just have to see if any indicate 'fire'
-  condi <- cond[cond$PLT_CN==pl.filt[i,]$CN,]
-  d1<-condi$DSTRBCD1
-  d2<-condi$DSTRBCD2
-  d3<-condi$DSTRBCD3
-  disturbances<-c(d1,d2,d3)
-  disturbances<-disturbances[!is.na(disturbances)]
-  
-  # DSTR code 30= fire (crown or ground), 31=ground, 32=crown.
-  firecodes<- c(30,31,32) 
-  
-  if(length(disturbances > 0)){
-    for(j in 1:(length(disturbances))){
-      if (disturbances[j] %in% firecodes){
-        pl.filt[i,]$FIRE <- 'yes'
-      }
-    }
-  }
-  
-  Sys.sleep(0.1) 
-  setTkProgressBar(pb, i, label=paste( round(i/pl_rows*100, 0),"% done"))
-  
-}
-close(pb)
 
 setwd("../Processed")
-write.csv(pl.filt,"pl_fire.csv")
+write.csv(pl.postfilt,"pl_fire.csv")
 
 
 
@@ -159,7 +106,8 @@ sp_lite<-data.frame(SPCD=spcd$SPCD,SCI_NAME=spcd$SCI_NAME)
 sdsp<-merge(sd,sp_lite,by="SPCD",all=T) 
 sdsp<-sdsp[!is.na(sdsp$PLT_CN),]
 
-pre_sd_lite <- data.frame(CN=sdsp$CN,PLT_CN=sdsp$PLT_CN,STATECD=sdsp$STATECD,BINOM=sdsp$SCI_NAME,INVYR=sdsp$INVYR,SUBPLOT_CN=sdsp$SUBP)
+pre_sd_lite <- data.frame(CN=sdsp$CN, PLT_CN=sdsp$PLT_CN, STATECD=sdsp$STATECD, 
+                          BINOM=sdsp$SCI_NAME, INVYR=sdsp$INVYR, SUBPLOT_CN=sdsp$SUBP)
 sd_lite <- rbind(pre_sd_lite,move_to_seed[names(move_to_seed) != "DIA"])
 sd_lite <- sd_lite[order(sd_lite$CN),] #now here is seed dataframe with names
 # CN PLT_CN STATECD                 BINOM
@@ -172,6 +120,7 @@ write.csv(sd_lite,"sd_lite.csv")
 
 
 # Here we make a table of all plots and the difference between seedlings and mature tree species composition
+setwd(paste0(project_directory,"Data/Occurrence/Processed"))
 pl.filt<-read.csv("pl_fire.csv",stringsAsFactors = F)
 tr_lite<-read.csv("tr_lite.csv",stringsAsFactors = F)
 sd_lite<-read.csv("sd_lite.csv",stringsAsFactors = F)
@@ -249,7 +198,7 @@ sapling <- tr_lite[tr_lite$DIA <= 12.7,] # centimeters
 mature <- tr_lite[tr_lite$DIA > 12.7,]
 
 CN_list <- c(sapling$PLT_CN,mature$PLT_CN)
-pl.filt_JG <- subset(pl.filt,pl.filt$CN %in% CN_list)
+pl.filt_JG <- subset(pl.filt, pl.filt$CN %in% CN_list)
 
 #this does all the work and separation
 sapling_novel<-c()
@@ -257,7 +206,7 @@ mature_novel<-c()
 plt_difs_JG<-data.frame(matrix(ncol=5))
 names(plt_difs_JG)<-c("PLT_CN","NVL_TREE","NVL_SEED","BOTH","FIRE")
 total = nrow(pl.filt_JG)
-pb <- tkProgressBar(title = "progress bar", min = 0,max = total, width = 300)#for progress bar
+pb <- tkProgressBar(title = "progress bar", min = 0, max = total, width = 300) # for progress bar
 for(i in 1:total){
   t<-as.character(na.omit(unique(mature[mature$PLT_CN==pl.filt_JG[i,]$CN,]$BINOM)))
   s<-as.character(na.omit(unique(sapling[sapling$PLT_CN==pl.filt_JG[i,]$CN,]$BINOM)))
